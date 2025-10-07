@@ -321,6 +321,65 @@
             margin-top: 5px;
         }
 
+        .challenge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 8px;
+            margin-top: 20px;
+            padding: 10px;
+        }
+
+        .day-box {
+            aspect-ratio: 1;
+            border: 2px solid #353849;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.8em;
+            background: #2a2d3e;
+            color: #e4e6f1;
+            transition: all 0.3s ease;
+        }
+
+        .day-box.completed {
+            background: #4c566a;
+            border-color: #667eea;
+            color: #fff;
+        }
+
+        .day-box:hover {
+            transform: scale(1.1);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #2a2d3e;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin-top: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 0.9em;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
         @media (max-width: 768px) {
             header h1 {
                 font-size: 1.8em;
@@ -498,6 +557,26 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 90 Day Challenge Tracker -->
+            <div class="card">
+                <h2><span class="icon">🎯</span> 90 Day Challenge</h2>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="challengeProgress"></div>
+                    <span class="progress-text" id="challengeProgressText">0/90 days</span>
+                </div>
+                <div class="challenge-grid" id="challengeGrid"></div>
+                <div class="stats-summary">
+                    <div class="stat">
+                        <div class="stat-value" id="currentStreak">0</div>
+                        <div class="stat-label">Current Streak</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="longestStreak">0</div>
+                        <div class="stat-label">Longest Streak</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -543,6 +622,9 @@
                 { day: 4, name: 'Computer Science', time: '9:00 AM', duration: '2 hours' },
                 { day: 4, name: 'English', time: '1:00 PM', duration: '1 hour' }
             ],
+            challengeDays: Array(90).fill(false),
+            currentStreak: 0,
+            longestStreak: 0,
             lastReset: new Date().toDateString()
         };
 
@@ -570,6 +652,9 @@
                         { day: 4, name: 'Computer Science', time: '9:00 AM', duration: '2 hours' },
                         { day: 4, name: 'English', time: '1:00 PM', duration: '1 hour' }
                     ],
+                    challengeDays: loadedData.challengeDays || Array(90).fill(false),
+                    currentStreak: loadedData.currentStreak || 0,
+                    longestStreak: loadedData.longestStreak || 0,
                     lastReset: loadedData.lastReset || new Date().toDateString()
                 };
                 
@@ -646,6 +731,8 @@
             loadProgressValues();
             displayClassSchedule();
             updateStats();
+            createChallengeGrid();
+            updateStreaks();
             
             // Add event listeners
             document.querySelectorAll('.task-item').forEach(task => {
@@ -668,6 +755,116 @@
             if ('Notification' in window) {
                 Notification.requestPermission();
             }
+        }
+
+        // Notification system
+        function setupNotifications() {
+            if (!('Notification' in window)) {
+                console.log('This browser does not support notifications');
+                return;
+            }
+
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    scheduleNotifications();
+                }
+            });
+        }
+
+        function scheduleNotifications() {
+            // Clear any existing notification intervals
+            if (window.notificationInterval) {
+                clearInterval(window.notificationInterval);
+            }
+
+            // Check every minute for upcoming tasks
+            window.notificationInterval = setInterval(() => {
+                const now = new Date();
+                const tasks = getAllTasks();
+                
+                tasks.forEach(task => {
+                    const taskTime = parseTaskTime(task.time);
+                    if (!taskTime) return;
+
+                    // Calculate time difference in minutes
+                    const timeDiff = (taskTime - now) / (1000 * 60);
+                    
+                    // If task is 10 minutes away and hasn't been notified
+                    if (timeDiff <= 10 && timeDiff > 9 && !task.notified) {
+                        sendNotification(task.name, task.time);
+                        task.notified = true;
+                    }
+                });
+            }, 60000); // Check every minute
+        }
+
+        function getAllTasks() {
+            const tasks = [];
+            
+            // Morning exercise
+            tasks.push({
+                name: "Morning Exercise",
+                time: "7:00 AM",
+                type: "exercise"
+            });
+
+            // Classes for today
+            const today = new Date().getDay();
+            const todayClasses = trackerData.classes.filter(c => c.day === today);
+            todayClasses.forEach(cls => {
+                tasks.push({
+                    name: cls.name,
+                    time: cls.time,
+                    type: "class"
+                });
+            });
+
+            // Meals
+            const meals = [
+                { name: "Breakfast", time: "8:00 AM" },
+                { name: "Mid-Morning Snack", time: "11:00 AM" },
+                { name: "Lunch", time: "1:00 PM" },
+                { name: "Evening Snack", time: "5:00 PM" },
+                { name: "Dinner", time: "7:30 PM" }
+            ];
+            meals.forEach(meal => {
+                tasks.push({
+                    name: meal.name,
+                    time: meal.time,
+                    type: "meal"
+                });
+            });
+
+            return tasks;
+        }
+
+        function parseTaskTime(timeStr) {
+            const [time, period] = timeStr.split(' ');
+            const [hours, minutes] = time.split(':');
+            const now = new Date();
+            const taskTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 
+                period === 'PM' && hours !== '12' ? parseInt(hours) + 12 : 
+                period === 'AM' && hours === '12' ? 0 : parseInt(hours),
+                parseInt(minutes));
+            return taskTime;
+        }
+
+        function sendNotification(taskName, taskTime) {
+            const notification = new Notification("Upcoming Task Reminder", {
+                body: `${taskName} is starting in 10 minutes (${taskTime})`,
+                icon: "/icon.png", // Add your icon path
+                badge: "/badge.png", // Add your badge path
+                vibrate: [200, 100, 200]
+            });
+
+            notification.onclick = function() {
+                window.focus();
+                this.close();
+            };
+
+            // Play notification sound
+            const audio = new Audio('/notification.mp3'); // Add your sound file path
+            audio.play().catch(e => console.log('Audio play failed:', e));
         }
 
         // Update date display
@@ -759,6 +956,65 @@
             document.getElementById('tasksCompleted').textContent = completedTasks;
             document.getElementById('totalTasks').textContent = totalTasks;
             document.getElementById('completionRate').textContent = rate + '%';
+        }
+
+        // Challenge tracker functions
+        function createChallengeGrid() {
+            const grid = document.getElementById('challengeGrid');
+            grid.innerHTML = '';
+            
+            trackerData.challengeDays.forEach((completed, index) => {
+                const dayBox = document.createElement('div');
+                dayBox.className = `day-box ${completed ? 'completed' : ''}`;
+                dayBox.textContent = index + 1;
+                dayBox.onclick = () => toggleDay(index);
+                grid.appendChild(dayBox);
+            });
+
+            updateChallengeProgress();
+        }
+
+        function toggleDay(index) {
+            trackerData.challengeDays[index] = !trackerData.challengeDays[index];
+            saveData();
+            createChallengeGrid();
+            updateStreaks();
+        }
+
+        function updateChallengeProgress() {
+            const completed = trackerData.challengeDays.filter(day => day).length;
+            const progress = (completed / 90) * 100;
+            
+            document.getElementById('challengeProgress').style.width = `${progress}%`;
+            document.getElementById('challengeProgressText').textContent = `${completed}/90 days`;
+        }
+
+        function updateStreaks() {
+            let currentStreak = 0;
+            let longestStreak = 0;
+            let tempStreak = 0;
+
+            trackerData.challengeDays.forEach((day, index) => {
+                if (day) {
+                    tempStreak++;
+                    if (tempStreak > longestStreak) {
+                        longestStreak = tempStreak;
+                    }
+                    if (index === trackerData.challengeDays.length - 1) {
+                        currentStreak = tempStreak;
+                    }
+                } else {
+                    tempStreak = 0;
+                }
+            });
+
+            trackerData.currentStreak = currentStreak;
+            trackerData.longestStreak = longestStreak;
+
+            document.getElementById('currentStreak').textContent = currentStreak;
+            document.getElementById('longestStreak').textContent = longestStreak;
+            
+            saveData();
         }
 
         // Settings functions
