@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard - Daily Health & Routine Tracker</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1c2e 0%, #2c1f4a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard-container {
+            background: #1e2030;
+            padding: 36px 32px;
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 100%;
+            color: #e4e6f1;
+        }
+        .dashboard-container h2 {
+            text-align: center;
+            color: #9fa6fb;
+            margin-bottom: 24px;
+        }
+        .user-info {
+            margin-bottom: 28px;
+        }
+        .user-info p {
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+        .btn {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 8px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <h2>User Dashboard</h2>
+        <div class="user-info" id="userInfo">
+            Loading user info...
+        </div>
+        <form id="extraInfoForm" style="display:none; margin-bottom:20px;">
+            <div style="margin-bottom:12px;">
+                <label for="mobile" style="color:#9fa6fb;">Mobile Number:</label>
+                <input type="tel" id="mobile" name="mobile" required style="width:100%;padding:8px;border-radius:6px;border:1px solid #353849;background:#2a2d3e;color:#e4e6f1;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="username" style="color:#9fa6fb;">User Name:</label>
+                <input type="text" id="username" name="username" required style="width:100%;padding:8px;border-radius:6px;border:1px solid #353849;background:#2a2d3e;color:#e4e6f1;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="weight" style="color:#9fa6fb;">Weight (kg):</label>
+                <input type="number" id="weight" name="weight" required min="1" step="0.1" style="width:100%;padding:8px;border-radius:6px;border:1px solid #353849;background:#2a2d3e;color:#e4e6f1;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="height" style="color:#9fa6fb;">Height (cm):</label>
+                <input type="number" id="height" name="height" required min="1" step="0.1" style="width:100%;padding:8px;border-radius:6px;border:1px solid #353849;background:#2a2d3e;color:#e4e6f1;">
+            </div>
+            <button type="submit" class="btn">Save Info</button>
+        </form>
+        <button class="btn" id="logoutBtn">Logout</button>
+        <a href="index.html" class="btn" style="background:#9fa6fb;color:#222;margin-top:10px;text-align:center;display:block;text-decoration:none;">Go to Main Page</a>
+    </div>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA4Roxq4ZirxQliyXwvbfZ499Ej2IAQdLc",
+            authDomain: "daily-routine-map.firebaseapp.com",
+            projectId: "daily-routine-map",
+            storageBucket: "daily-routine-map.firebasestorage.app",
+            messagingSenderId: "726387825653",
+            appId: "1:726387825653:web:64575c365dd91085ce9ebc",
+            measurementId: "G-F9H03EHS5H"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const userInfoDiv = document.getElementById('userInfo');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const extraInfoForm = document.getElementById('extraInfoForm');
+
+        // Helper to get/set extra info in localStorage per user
+        function getExtraInfo(uid) {
+            const data = localStorage.getItem('userExtraInfo_' + uid);
+            return data ? JSON.parse(data) : null;
+        }
+        function setExtraInfo(uid, info) {
+            localStorage.setItem('userExtraInfo_' + uid, JSON.stringify(info));
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userInfoDiv.innerHTML = `
+                    <p><strong>Display Name:</strong> ${user.displayName || '—'}</p>
+                    <p><strong>Email:</strong> ${user.email}</p>
+                    <p><strong>UID:</strong> ${user.uid}</p>
+                `;
+                const extra = getExtraInfo(user.uid);
+                if (extra) {
+                    userInfoDiv.innerHTML = `
+                        <p><strong>Email:</strong> ${user.email}</p>                        
+                        <p><strong>Mobile Number:</strong> ${extra.mobile}</p>
+                        <p><strong>User Name:</strong> ${extra.username}</p>
+                        <p><strong>Weight:</strong> ${extra.weight} kg</p>
+                        <p><strong>Height:</strong> ${extra.height} cm</p>
+                    `;
+                    extraInfoForm.style.display = "none";
+                } else {
+                    userInfoDiv.innerHTML = `<p style="color:#ffb347;">Please complete your profile information:</p>`;
+                    extraInfoForm.style.display = "block";
+                }
+            } else {
+                window.location.href = 'login.html';
+            }
+        });
+
+        extraInfoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const user = auth.currentUser;
+            if (!user) return;
+            const info = {
+                mobile: document.getElementById('mobile').value,
+                username: document.getElementById('username').value,
+                weight: document.getElementById('weight').value,
+                height: document.getElementById('height').value
+            };
+            setExtraInfo(user.uid, info);
+            // Refresh to show info
+            userInfoDiv.innerHTML = `
+                <p><strong>Display Name:</strong> ${user.displayName || info.username || '—'}</p>
+                <p><strong>Email:</strong> ${user.email}</p>
+                <p><strong>UID:</strong> ${user.uid}</p>
+                <p><strong>Mobile Number:</strong> ${info.mobile}</p>
+                <p><strong>User Name:</strong> ${info.username}</p>
+                <p><strong>Weight:</strong> ${info.weight} kg</p>
+                <p><strong>Height:</strong> ${info.height} cm</p>
+            `;
+            extraInfoForm.style.display = "none";
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            await signOut(auth);
+            window.location.href = 'login.html';
+        });
+    </script>
+</body>
+</html>
